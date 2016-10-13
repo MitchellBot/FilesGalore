@@ -13,7 +13,10 @@ static const char alphanum[] =
 "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 "abcdefghijklmnopqrstuvwxyz";
 
-int stringLength = sizeof(alphanum) - 1;
+const int _MAXSTRING = 1024;
+
+//int stringLength = sizeof(alphanum) - 1;
+int leftToWrite;
 int numberOfFiles = 0;
 int fileBytes = 0; //i.e. characters in the file
 
@@ -27,18 +30,32 @@ void sortTheArgs(int numArgs, char *args[])
 		std::string s = args[i];
 		if (s.find("-f") != std::string::npos)
 		{
-			arg1 = s.erase(0,2);
+			arg1 = s.erase(0, 2);
 			std::stringstream ss(arg1);
 			ss >> numberOfFiles;
 		}
 		if (s.find("-b") != std::string::npos)
 		{
-			arg2 = s.erase(0,2);
+			arg2 = s.erase(0, 2);
 			std::stringstream ss(arg2);
 			ss >> fileBytes;
 		}
 	}
+}
 
+void writeJunkData(std::string file, int characters)
+{
+	char buffer[_MAXSTRING];
+
+	for (unsigned int x = 0; x < characters; x++)
+	{
+		buffer[x] = alphanum[rand() % characters];
+	}
+
+	std::ofstream mStream(file, std::ios::in | std::ios::out | std::ios::binary | std::ios::app);
+
+	mStream.write(buffer, characters);
+	mStream.clear();
 
 }
 
@@ -57,25 +74,30 @@ void createJunk()
 
 		std::string filename = filenameStream.str();
 
-		char buffer[1024];
+		leftToWrite = fileBytes;
 
-		for (unsigned int x = 0; x < fileBytes; x++)
+		bool Done = false;
+
+		while (!Done)
 		{
-			buffer[x] = alphanum[rand() % fileBytes];
+			if (leftToWrite > _MAXSTRING)
+			{
+				writeJunkData(filename, 1024);
+				leftToWrite = leftToWrite - 1024;
+			}
+			else
+			{
+				writeJunkData(filename, leftToWrite);
+				Done = true;
+			}
 		}
 
-		std::ofstream mStream(filename, std::ios::out | std::ios::binary);
-
-		mStream.write(buffer, fileBytes);
-		mStream.clear();
 		filenameStream.clear();
+
 	}
 }
 
-void writeJunkData(int characters)
-{
 
-}
 
 int main(int argc, char *argv[])
 {
