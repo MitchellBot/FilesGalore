@@ -6,6 +6,8 @@
 #include <iostream>
 #include <sstream>
 #include <Windows.h>
+#include <thread>
+#include <mutex>
 
 static const char alphanum[] =
 "0123456789"
@@ -15,10 +17,14 @@ static const char alphanum[] =
 
 const int _MAXSTRING = 1024;
 
+std::mutex mMutex;
+
 //int stringLength = sizeof(alphanum) - 1;
 int leftToWrite;
 int numberOfFiles = 0;
 int fileBytes = 0; //i.e. characters in the file
+
+bool isThreadOneDone = false;
 
 void sortTheArgs(int numArgs, char *args[])
 {
@@ -30,14 +36,12 @@ void sortTheArgs(int numArgs, char *args[])
 		std::string s = args[i];
 		if (s.find("-f") != std::string::npos)
 		{
-			arg1 = s.erase(0, 2);
-			std::stringstream ss(arg1);
+			std::stringstream ss(args[i + 1]);
 			ss >> numberOfFiles;
 		}
 		if (s.find("-b") != std::string::npos)
 		{
-			arg2 = s.erase(0, 2);
-			std::stringstream ss(arg2);
+			std::stringstream ss(args[i + 1]);
 			ss >> fileBytes;
 		}
 	}
@@ -49,7 +53,7 @@ void writeJunkData(std::string file, int characters)
 
 	for (unsigned int x = 0; x < characters; x++)
 	{
-		buffer[x] = alphanum[rand() % characters];
+		buffer[x] = alphanum[rand() % sizeof(alphanum)];
 	}
 
 	std::ofstream mStream(file, std::ios::in | std::ios::out | std::ios::binary | std::ios::app);
@@ -59,51 +63,70 @@ void writeJunkData(std::string file, int characters)
 
 }
 
-void createJunk()
+void createJunk(int fileNumber)
 {
 	CreateDirectoryA(".\\JunkDirectory", NULL);
 
+	std::stringstream filenameStream;
+
+	filenameStream << ".\\JunkDirectory\\junkfile" << fileNumber + 1 << ".bin";
+
+	std::string filename = filenameStream.str();
+
+	mMutex.lock();
+	leftToWrite = fileBytes;
+
+	bool Done = false;
+
+	while (!Done)
+	{
+		if (leftToWrite > _MAXSTRING)
+		{
+			writeJunkData(filename, 1024);
+			leftToWrite -= 1024;
+		}
+		else
+		{
+			writeJunkData(filename, leftToWrite);
+			Done = true;
+		}
+	}
+
+	filenameStream.clear();
+	mMutex.unlock();
+}
+
+void handleOddFiles()
+{
 	for (long i = 0; i < numberOfFiles; i++)
 	{
-		printf_s("doing %d\n", i + 1);
-
-		srand(i);
-		std::stringstream filenameStream;
-
-		filenameStream << ".\\JunkDirectory\\junkfile" << i << ".bin";
-
-		std::string filename = filenameStream.str();
-
-		leftToWrite = fileBytes;
-
-		bool Done = false;
-
-		while (!Done)
+		if (i % 2 == 0)
 		{
-			if (leftToWrite > _MAXSTRING)
-			{
-				writeJunkData(filename, 1024);
-				leftToWrite = leftToWrite - 1024;
-			}
-			else
-			{
-				writeJunkData(filename, leftToWrite);
-				Done = true;
-			}
+			printf_s("doing %d\n", i + 1);
+			createJunk(i);
 		}
-
-		filenameStream.clear();
-
 	}
 }
 
+void handleEvenFiles()
+{
+	for (long i = 0; i < numberOfFiles; i++)
+	{
+		if (i % 2 != 0)
+		{
+			printf_s("doing %d\n", i + 1);
+			createJunk(i);
+		}
+	}
+	isThreadOneDone = true;
+}
 
 
 int main(int argc, char *argv[])
 {
-	if (argc > 3)
+	if (argc > 5)
 	{
-		std::cout << "Incorrect number of arguments.\nPlease use -f#### for number of files, -b#### for byte size desired.\n";
+		std::cout << "Incorrect number of arguments.\nPlease use -f #### for number of files, -b #### for byte size desired.\n";
 		system("PAUSE");
 		return 1;
 	}
@@ -132,15 +155,24 @@ int main(int argc, char *argv[])
 
 	if (input == "y" || input == "Y")
 	{
+		std::thread t1(handleEvenFiles);
+		std::thread t2(handleOddFiles);
 
-		createJunk();
+		t1.detach();
+		t2.join();
 	}
 	else
 	{
-		std::cout << "Something went terribly, terribly wrong...\n";
+		std::cout << "Why would you launch me if you weren't going to use me?\n";
 		system("PAUSE");
 		return 1;
 	}
+
+	while (!isThreadOneDone)
+	{
+		std::this_thread::yield();
+	}
+
 	std::cout << "All done!\n";
 	system("PAUSE");
 	return 0;
